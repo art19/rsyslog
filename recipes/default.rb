@@ -19,12 +19,44 @@
 
 extend RsyslogCookbook::Helpers
 
-package 'rsyslog'
+# the old opsworks stacks don't seem to have a new enough gnutls for the latest rsyslog, to let's
+# lock the version of rsyslog to the most recent that works
+package 'yum-plugin-versionlock'
+
+execute 'versionlock-rsyslog' do
+  command 'yum versionlock rsyslog-8.26.0-1.el6.*'
+  
+  not_if do
+    ::File.exist?('/etc/yum/pluginconf.d/versionlock.list') &&
+    ::File.foreach('/etc/yum/pluginconf.d/versionlock.list').any? { |l| l.include?('rsyslog-8.26.0-1.el6.*') }
+  end
+end
+
+execute 'versionlock-rsyslog-gnutls' do
+  command 'yum versionlock rsyslog-gnutls-8.26.0-1.el6.*'
+
+  not_if do
+    ::File.exist?('/etc/yum/pluginconf.d/versionlock.list') &&
+    ::File.foreach('/etc/yum/pluginconf.d/versionlock.list').any? { |l| l.include?('rsyslog-gnutls-8.26.0-1.el6.*') }
+  end
+end
+
+execute 'versionlock-flush-cache' do
+  command 'yum clean all'
+end
+
+package 'rsyslog' do
+  version '8.26.0-1.el6'
+end
+
 package 'rsyslog-relp' if node['rsyslog']['use_relp']
 
 if node['rsyslog']['enable_tls'] && node['rsyslog']['tls_ca_file']
   Chef::Application.fatal!("Recipe rsyslog::default can not use 'enable_tls' with protocol '#{node['rsyslog']['protocol']}' (requires 'tcp')") unless node['rsyslog']['protocol'] == 'tcp'
-  package 'rsyslog-gnutls'
+  
+  package 'rsyslog-gnutls' do
+    version '8.26.0-1.el6'
+  end
 end
 
 directory "#{node['rsyslog']['config_prefix']}/rsyslog.d" do
